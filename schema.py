@@ -77,4 +77,17 @@ class TigerBotTextParagraphSchema:
                     '内容': self.content, # 对应content
                     '扩展字段': self.extended_field # 对应content
                 }
-        return json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+        # return json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+        return data
+
+
+# paragraph = []
+# paragraph.append(TigerBotTextParagraphSchema(1, "md5", "title", "author", "content", "extended_field").to_json())
+# paragraph.append(TigerBotTextParagraphSchema(2, "md5", "title", "author", "content", "extended_field").to_json())
+
+# data = {
+#         "低质量段落数": 0,
+#         "段落": paragraph
+#     }
+# str = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+# print(str)
