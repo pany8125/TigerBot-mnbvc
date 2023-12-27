@@ -9,8 +9,7 @@ import os
 import schema
 import hashlib
 import logging
-import re
-import chardet
+import pandas as pd
 
 SOURCE = 'TigerBot'
 OUTPUT_DIR = ''
@@ -19,7 +18,7 @@ CUR_TITLE = ''
 # 配置日志记录
 logging.basicConfig(
     filename='TigerBot_log_file.log',  # 指定日志文件的名称
-    level=logging.INFO,  # 指定日志级别（INFO、WARNING、ERROR、CRITICAL等）
+    level=logging.DEBUG,  # 指定日志级别（INFO、WARNING、ERROR、CRITICAL等）
     format='%(asctime)s [%(levelname)s]: %(message)s',  # 日志格式
     datefmt='%Y-%m-%d %H:%M:%S'  # 日期和时间格式
 )
@@ -277,7 +276,21 @@ def process_text_json_common(json_datas, write_file=None):
     write_file.write('\n')
     return True
 
-def process_pretraining_text():
+def process_pretraining_text(file_paths, output_file, max_size):
+    chunksize = 100  # 每次读取的行数
+    for file in file_paths:
+        chunk = pd.read_parquet(file, chunksize=chunksize)
+        logging.info(f"Processing {file}")
+        # 文件序号
+        file_number = 1
+        write_file = open(OUTPUT_DIR + f'{output_file}_{file_number:02}.jsonl', 'w', encoding='utf-8')
+        for i, df in enumerate(chunk):
+            # 打印迭代信息
+            logging.debug(f"Line {i}: {df}")
+            # 生成json
+            for index, row in df.iterrows():
+                logging.debug(f"Line {index}: {row}")
+            break
     pass
 
 if __name__ == "__main__":
@@ -296,6 +309,7 @@ if __name__ == "__main__":
     cur_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     file_paths = []
     OUTPUT_DIR = args.dest_dir
+
     # 检查文件是否存在
     if os.path.isfile(args.source_files):
         file_paths.append(args.source_files)
@@ -306,11 +320,24 @@ if __name__ == "__main__":
                 logging.warning(f"Skipping subdirectory {f_path}")
                 continue
             file_paths.append(f_path)
+        for f_path in sorted(glob(f"{args.source_files}/**/*.parquet", recursive=True)):
+            if not os.path.isfile(f_path):
+                # 跳过子目录并打印日志
+                logging.warning(f"Skipping subdirectory {f_path}")
+                continue
+            file_paths.append(f_path)
     # 打印处理清单
     logging.info(f"Processing {len(file_paths)} files")
-    for f_path in file_paths:
-        logging.info(f"Processing {f_path}")
-        f_prefix_name = os.path.basename(f_path).split('.')[0]
+    if args.type == 'pretraining':
+        logging.info(f"Processing {args.type} data")
+        f_prefix_name = 'pretraining'
         output_file_prefix = f'{SOURCE}_{args.type}_{f_prefix_name}_{cur_time}'
-        # 调用函数来处理 JSON 文件，默认从第1行开始读取
-        tiger_bot_extract(f_path, output_file_prefix, args.type, args.max_size)
+        process_pretraining_text(file_paths, output_file_prefix, args.max_size)
+    else:
+        logging.info(f"Processing {args.type} data")
+        for f_path in file_paths:
+            logging.info(f"Processing {f_path}")
+            f_prefix_name = os.path.basename(f_path).split('.')[0]
+            output_file_prefix = f'{SOURCE}_{args.type}_{f_prefix_name}_{cur_time}'
+            # 调用函数来处理 JSON 文件，默认从第1行开始读取
+            tiger_bot_extract(f_path, output_file_prefix, args.type, args.max_size)
