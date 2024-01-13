@@ -12,13 +12,14 @@ import logging
 import pandas as pd
 
 SOURCE = 'TigerBot'
+PRETRAIN_CUR_TITLE =''
 OUTPUT_DIR = ''
 CUR_TITLE = ''
 
 # 配置日志记录
 logging.basicConfig(
     filename='TigerBot_log_file.log',  # 指定日志文件的名称
-    level=logging.DEBUG,  # 指定日志级别（INFO、WARNING、ERROR、CRITICAL等）
+    level=logging.INFO,  # 指定日志级别（INFO、WARNING、ERROR、CRITICAL等）
     format='%(asctime)s [%(levelname)s]: %(message)s',  # 日志格式
     datefmt='%Y-%m-%d %H:%M:%S'  # 日期和时间格式
 )
@@ -276,22 +277,74 @@ def process_text_json_common(json_datas, write_file=None):
     write_file.write('\n')
     return True
 
-def process_pretraining_text(file_paths, output_file, max_size):
-    chunksize = 100  # 每次读取的行数
-    for file in file_paths:
-        chunk = pd.read_parquet(file, chunksize=chunksize)
-        logging.info(f"Processing {file}")
-        # 文件序号
-        file_number = 1
-        write_file = open(OUTPUT_DIR + f'{output_file}_{file_number:02}.jsonl', 'w', encoding='utf-8')
-        for i, df in enumerate(chunk):
-            # 打印迭代信息
-            logging.debug(f"Line {i}: {df}")
-            # 生成json
-            for index, row in df.iterrows():
-                logging.debug(f"Line {index}: {row}")
-            break
-    pass
+def process_pretraining_text(file_path, output_file, max_size):
+    global PRETRAIN_CUR_TITLE
+    parquet_datas = []
+    # 文件序号
+    file_number = 1
+    write_file = open(OUTPUT_DIR + f'{output_file}_{file_number:02}.jsonl', 'w', encoding='utf-8')
+    chunk = pd.read_parquet(file_path)
+    for index, row in chunk.iterrows():
+        logging.debug(f"Line {index}: {row}")
+        if PRETRAIN_CUR_TITLE != '' and PRETRAIN_CUR_TITLE != row['title']:
+            if process_text_parquet_common(parquet_datas, write_file):
+                parquet_datas = []
+                parquet_datas.append(row)
+                PRETRAIN_CUR_TITLE = row['title']
+            else:
+                logging.error("process_pretraining_text parse error!")
+                logging.error(f"Line {index}, error!")
+                exit()
+        else:
+            PRETRAIN_CUR_TITLE = row['title']
+            parquet_datas.append(row)
+                    # 如果文件超过500M，就关闭文件，新建文件
+        if write_file.tell() > max_size:
+            write_file.close()
+            file_number += 1
+            write_file = open(OUTPUT_DIR + f'{output_file}_{file_number:02}.jsonl', 'w', encoding='utf-8')
+    # 处理最后一批数据
+    if process_text_parquet_common(parquet_datas, write_file):
+        parquet_datas = []
+        PRETRAIN_CUR_TITLE = ''
+    else:
+        logging.error("process_pretraining_text parse error!")
+        logging.error(f"Last line, error!")
+        exit()
+
+def process_text_parquet_common(parquet_datas, write_file=None):
+    # 计算json_datas的总大小
+    size = 0
+    paragraphs = []
+    line_number = 0
+    for parquet_data in parquet_datas:
+        str_data = str(parquet_data)
+        size += len(str_data)
+        line_number += 1
+        md5 = hashlib.md5(str_data.encode('utf-8')).hexdigest()
+        title = PRETRAIN_CUR_TITLE
+        content = parquet_data['content']
+        extended_field = ''
+        # 如果存在dataType的key，就取出来
+        if parquet_data['dataType']:
+            extended_field += ", \"dataType\": \""+ parquet_data['dataType'] +"\""
+        # 如果存在uniqueKey的key，就取出来
+        if parquet_data['uniqueKey']:
+            extended_field += ", \"uniqueKey\": \""+ parquet_data['uniqueKey'] +"\""
+        # 如果存在titleUkey的key，就取出来
+        if parquet_data['titleUkey']:
+            extended_field += ", \"titleUkey\": \""+ parquet_data['titleUkey'] +"\""
+        # 如果存在id的key，就取出来
+        if parquet_data['id']:
+            extended_field += ", \"id\": \""+ str(parquet_data['id']) +"\""
+        para_json_schema = schema.TigerBotTextParagraphSchema(line_number, md5, title, '', content, extended_field).to_json()
+        paragraphs.append(para_json_schema)
+    json_schema = schema.TigerBotTextSchema(PRETRAIN_CUR_TITLE, size, '', paragraphs)
+    # 生成json
+    json_str = json_schema.to_json()
+    write_file.write(json_str)
+    write_file.write('\n')
+    return True
 
 if __name__ == "__main__":
     import argparse
@@ -328,16 +381,10 @@ if __name__ == "__main__":
             file_paths.append(f_path)
     # 打印处理清单
     logging.info(f"Processing {len(file_paths)} files")
-    if args.type == 'pretraining':
-        logging.info(f"Processing {args.type} data")
-        f_prefix_name = 'pretraining'
+    logging.info(f"Processing {args.type} data")
+    for f_path in file_paths:
+        logging.info(f"Processing {f_path}")
+        f_prefix_name = os.path.basename(f_path).split('.')[0]
         output_file_prefix = f'{SOURCE}_{args.type}_{f_prefix_name}_{cur_time}'
-        process_pretraining_text(file_paths, output_file_prefix, args.max_size)
-    else:
-        logging.info(f"Processing {args.type} data")
-        for f_path in file_paths:
-            logging.info(f"Processing {f_path}")
-            f_prefix_name = os.path.basename(f_path).split('.')[0]
-            output_file_prefix = f'{SOURCE}_{args.type}_{f_prefix_name}_{cur_time}'
-            # 调用函数来处理 JSON 文件，默认从第1行开始读取
-            tiger_bot_extract(f_path, output_file_prefix, args.type, args.max_size)
+        # 调用函数来处理 JSON 文件，默认从第1行开始读取
+        tiger_bot_extract(f_path, output_file_prefix, args.type, args.max_size)
