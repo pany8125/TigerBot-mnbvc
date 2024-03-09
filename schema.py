@@ -3,7 +3,7 @@ from datetime import datetime
 
 class TigerBotQASchema:
 
-    def __init__(self, id, question, answer, question_detail, answer_detail, session, round_number, model, other_field):
+    def __init__(self, id, question, answer, question_detail, answer_detail, session, round_number, model, other_field, time):
         self.id = id
         self.question = question
         self.answer = answer
@@ -13,6 +13,7 @@ class TigerBotQASchema:
         self.answer_detail = answer_detail 
         # 扩展字段
         self.extended_field = "{\"会话\": " + session + ", \"多轮序号\": " + str(round_number) + ", \"解析模型\": " + model + other_field + "}"
+        self.time = time
 
     def to_json(self):
         data = {
@@ -25,7 +26,8 @@ class TigerBotQASchema:
                 "问题明细": self.question_detail,
                 "回答明细": self.answer_detail,
                 "扩展字段": self.extended_field
-            }
+            },
+            "时间": self.time
         }
         # jsonl的库处理下
         # 扩展字段直接json dump
@@ -33,11 +35,12 @@ class TigerBotQASchema:
 
 class TigerBotTextSchema:
 
-    def __init__(self, file_name, file_size, extended_field, paragraps):
+    def __init__(self, file_name, file_size, extended_field, paragraps, time):
         self.file_name = file_name
         self.file_size = file_size
         self.extended_field = extended_field
         self.paragrap = paragraps
+        self.time = time
 
     def to_json(self):
         data = {
@@ -51,7 +54,8 @@ class TigerBotTextSchema:
                 "去重段落数": 0,
                 "低质量段落数": 0,
                 '扩展字段': self.extended_field,
-                "段落": self.paragrap
+                "段落": self.paragrap,
+                "时间": self.time
             }
         return json.dumps(data, separators=(",", ":"), ensure_ascii=False)
 

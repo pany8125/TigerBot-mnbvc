@@ -96,11 +96,12 @@ def process_qa_json_common(json_str, write_file=None):
         unique_id = hashlib.md5(json_str.encode('utf-8')).hexdigest()
         question_detail = "\"instruction\"\"input\""
         answer_detail = "\"output\""
+        time = datetime.now().strftime("%Y%m%d")
         # 取出json中instruction对应的字符串，None转成空字符串
         question = json_data['instruction'] if json_data['instruction'] != None else ''
         question += json_data['input'] if json_data['input'] != None else ''
         answer = json_data['output'] if json_data['output'] != None else ''
-        json_schema = schema.TigerBotQASchema(unique_id, question, answer, question_detail, answer_detail, unique_id, 1, f'\"{SOURCE}\"', '')
+        json_schema = schema.TigerBotQASchema(unique_id, question, answer, question_detail, answer_detail, unique_id, 1, f'\"{SOURCE}\"', '', time)
         # 生成json
         json_str = json_schema.to_json()
         write_file.write(json_str)
@@ -174,6 +175,17 @@ def process_text_file_common(f_path, output_file, max_size):
             exit()
 
 def process_text_file_manual(f_path, output_file, max_size):
+    """
+    Process a text file manually, extracting JSON data and writing it to output files.
+
+    Args:
+        f_path (str): The path to the input text file.
+        output_file (str): The base name of the output files.
+        max_size (int): The maximum size (in bytes) of each output file.
+
+    Returns:
+        bool: True if the processing is successful, False otherwise.
+    """
     # 文件序号
     file_number = 1
     write_file = open(OUTPUT_DIR + f'{output_file}_{file_number:02}.jsonl', 'w', encoding='utf-8')
@@ -244,6 +256,7 @@ def process_text_json_common(json_datas, write_file=None):
     size = 0
     paragraphs = []
     line_number = 0
+    time = datetime.now().strftime("%Y%m%d")
     for json_data in json_datas:
         logging.debug(json_data)
         json_str = json.dumps(json_data, ensure_ascii=False).encode('utf-8')
@@ -270,7 +283,7 @@ def process_text_json_common(json_datas, write_file=None):
             CUR_TITLE = json_data['url']
         para_json_schema = schema.TigerBotTextParagraphSchema(line_number, md5, title, '', content, extended_field).to_json()
         paragraphs.append(para_json_schema)
-    json_schema = schema.TigerBotTextSchema(CUR_TITLE, size, '', paragraphs)
+    json_schema = schema.TigerBotTextSchema(CUR_TITLE, size, '', paragraphs, time)
     # 生成json
     json_str = json_schema.to_json()
     write_file.write(json_str)
@@ -317,6 +330,7 @@ def process_text_parquet_common(parquet_datas, write_file=None):
     size = 0
     paragraphs = []
     line_number = 0
+    time = datetime.now().strftime("%Y%m%d")
     for parquet_data in parquet_datas:
         str_data = str(parquet_data)
         size += len(str_data)
@@ -339,7 +353,7 @@ def process_text_parquet_common(parquet_datas, write_file=None):
             extended_field += ", \"id\": \""+ str(parquet_data['id']) +"\""
         para_json_schema = schema.TigerBotTextParagraphSchema(line_number, md5, title, '', content, extended_field).to_json()
         paragraphs.append(para_json_schema)
-    json_schema = schema.TigerBotTextSchema(PRETRAIN_CUR_TITLE, size, '', paragraphs)
+    json_schema = schema.TigerBotTextSchema(PRETRAIN_CUR_TITLE, size, '', paragraphs, time)
     # 生成json
     json_str = json_schema.to_json()
     write_file.write(json_str)
@@ -388,3 +402,4 @@ if __name__ == "__main__":
         output_file_prefix = f'{SOURCE}_{args.type}_{f_prefix_name}_{cur_time}'
         # 调用函数来处理 JSON 文件，默认从第1行开始读取
         tiger_bot_extract(f_path, output_file_prefix, args.type, args.max_size)
+ 
