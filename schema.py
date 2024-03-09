@@ -12,7 +12,7 @@ class TigerBotQASchema:
         self.question_detail = question_detail 
         self.answer_detail = answer_detail 
         # 扩展字段
-        self.extended_field = "{\"会话\": " + session + ", \"多轮序号\": " + str(round_number) + ", \"解析模型\": " + model + other_field + "}"
+        self.extended_field = "{\"会话\": \"" + session + "\", \"多轮序号\": " + str(round_number) + "}"
         self.time = time
 
     def to_json(self):
